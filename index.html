@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة الشهادات الطبية</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            padding: 10px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .print-btn {
+            background: #2ecc71;
+        }
+        .print-btn:hover {
+            background: #27ae60;
+        }
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .result-table th, .result-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        .result-table th {
+            background: #f8f9fa;
+        }
+        .hidden-print {
+            display: none;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .print-container, .print-container * {
+                visibility: visible;
+            }
+            .print-container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .hidden-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>نظام إدارة الشهادات الطبية المدرسية</h1>
+
+        <!-- بطاقة تسجيل شهادة جديدة -->
+        <div class="card">
+            <h2>تسجيل شهادة طبية جديدة</h2>
+            <div class="form-group">
+                <label for="studentName">اسم التلميذ:</label>
+                <input type="text" id="studentName" required>
+            </div>
+            <div class="form-group">
+                <label for="issueDate">تاريخ الاستلام:</label>
+                <input type="date" id="issueDate" required>
+            </div>
+            <div class="form-group">
+                <label for="duration">مدة الشهادة (أيام):</label>
+                <input type="number" id="duration" step="0.5" min="0.5" required>
+            </div>
+            <button onclick="addCertificate()">حفظ الشهادة</button>
+        </div>
+
+        <!-- بطاقة البحث اليومي -->
+        <div class="card">
+            <h2>الغيابات المبررة ليوم محدد</h2>
+            <div class="form-group">
+                <label for="searchDate">اختر التاريخ:</label>
+                <input type="date" id="searchDate" required>
+            </div>
+            <button onclick="searchDaily()">بحث</button>
+            <div id="dailyResults" class="result-table-container"></div>
+        </div>
+
+        <!-- بطاقة البحث عن فترة -->
+        <div class="card">
+            <h2>تقرير الغيابات المبررة خلال فترة</h2>
+            <div class="form-group">
+                <label for="studentFilter">اسم التلميذ (اختياري):</label>
+                <input type="text" id="studentFilter">
+            </div>
+            <div class="form-group">
+                <label for="startDate">من تاريخ:</label>
+                <input type="date" id="startDate" required>
+            </div>
+            <div class="form-group">
+                <label for="endDate">إلى تاريخ:</label>
+                <input type="date" id="endDate" required>
+            </div>
+            <button onclick="generateReport()" class="print-btn">إنشاء تقرير</button>
+            <button onclick="printReport()" class="print-btn hidden-print">طباعة التقرير</button>
+            <div id="reportResults" class="result-table-container print-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // قاعدة بيانات محلية لتخزين الشهادات
+        let certificates = JSON.parse(localStorage.getItem('medicalCertificates')) || [];
+
+        // تعريف دالة حفظ الشهادة
+        function addCertificate() {
+            const studentName = document.getElementById('studentName').value;
+            const issueDate = document.getElementById('issueDate').value;
+            const duration = parseFloat(document.getElementById('duration').value);
+
+            if (!studentName || !issueDate || isNaN(duration)) return;
+
+            const startDate = new Date(issueDate);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + duration);
+
+            certificates.push({
+                id: Date.now(),
+                studentName,
+                issueDate,
+                duration,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0]
+            });
+
+            localStorage.setItem('medicalCertificates', JSON.stringify(certificates));
+            alert('تم حفظ الشهادة بنجاح!');
+            document.getElementById('studentName').value = '';
+        }
+
+        // دالة البحث اليومي
+        function searchDaily() {
+            const searchDate = document.getElementById('searchDate').value;
+            const filtered = certificates.filter(cert => {
+                return cert.startDate <= searchDate && cert.endDate >= searchDate;
+            });
+
+            displayDailyResults(filtered);
+        }
+
+        // عرض نتائج البحث اليومي
+        function displayDailyResults(results) {
+            const container = document.getElementById('dailyResults');
+            container.innerHTML = `
+                <table class="result-table">
+                    <thead>
+                        <tr>
+                            <th>اسم التلميذ</th>
+                            <th>تاريخ الاستلام</th>
+                            <th>مدة الشهادة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${results.map(cert => `
+                            <tr>
+                                <td>${cert.studentName}</td>
+                                <td>${cert.issueDate}</td>
+                                <td>${cert.duration} أيام</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // إنشاء تقرير الفترة
+        function generateReport() {
+            const studentFilter = document.getElementById('studentFilter').value.toLowerCase();
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            const filtered = certificates.filter(cert => {
+                const matchesDate = cert.startDate <= endDate && cert.endDate >= startDate;
+                const matchesName = cert.studentName.toLowerCase().includes(studentFilter);
+                return matchesDate && matchesName;
+            });
+
+            displayReport(filtered, startDate, endDate);
+        }
+
+        // عرض التقرير
+        function displayReport(certificates, startDate, endDate) {
+            const container = document.getElementById('reportResults');
+            const totalDays = calculateTotalDays(certificates, startDate, endDate);
+
+            container.innerHTML = `
+                <div class="report-header">
+                    <h3>تقرير الغيابات المبررة من ${startDate} إلى ${endDate}</h3>
+                </div>
+                <table class="result-table">
+                    <thead>
+                        <tr>
+                            <th>اسم التلميذ</th>
+                            <th>تاريخ الاستلام</th>
+                            <th>مدة الشهادة</th>
+                            <th>الفترة المغطاة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${certificates.map(cert => `
+                            <tr>
+                                <td>${cert.studentName}</td>
+                                <td>${cert.issueDate}</td>
+                                <td>${cert.duration} أيام</td>
+                                <td>من ${cert.startDate} إلى ${cert.endDate}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div class="total-days">
+                    <strong>المجموع الكلي للأيام المبررة: ${totalDays} يوم</strong>
+                </div>
+            `;
+
+            document.querySelector('.hidden-print').style.display = 'inline-block';
+        }
+
+        // حساب الأيام المبررة خلال الفترة
+        function calculateTotalDays(certificates, startDate, endDate) {
+            let total = 0;
+            certificates.forEach(cert => {
+                const certStart = new Date(cert.startDate);
+                const certEnd = new Date(cert.endDate);
+                const periodStart = new Date(startDate);
+                const periodEnd = new Date(endDate);
+
+                const overlapStart = certStart > periodStart ? certStart : periodStart;
+                const overlapEnd = certEnd < periodEnd ? certEnd : periodEnd;
+
+                if (overlapStart > overlapEnd) return;
+
+                const days = (overlapEnd - overlapStart) / (1000*60*60*24) + 1;
+                total += days;
+            });
+            return total;
+        }
+
+        // طباعة التقرير
+        function printReport() {
+            window.print();
+        }
+    </script>
+</body>
+</html>
